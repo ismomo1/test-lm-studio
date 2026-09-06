@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0e1116">
+  <meta name="description" content="Temporizador de turnos para partidas de Small World of Warcraft">
+  <title>SWoW Timer</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============ SECCIÓN 1: TIMER DE PARTIDA (FASE 1) ============ -->
+    <main id="timer-section" class="section">
+      <header class="app-header">
+        <h1>SWoW Timer</h1>
+        <span class="subtitle">Small World of Warcraft</span>
+      </header>
+
+      <!-- ---- Pantalla de configuración ---- -->
+      <section id="screen-config" class="screen" hidden>
+        <h2>Configurar partida</h2>
+
+        <div class="field">
+          <label for="cfg-duration">Duración total de la partida</label>
+          <div class="row duration-row">
+            <select id="cfg-duration">
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60" selected>60 min</option>
+              <option value="90">90 min</option>
+              <option value="120">120 min</option>
+              <option value="150">150 min</option>
+              <option value="180">180 min</option>
+              <option value="custom">Otro…</option>
+            </select>
+            <input type="number" id="cfg-duration-custom" inputmode="numeric" min="5" max="600" step="5" placeholder="min" hidden>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="cfg-players">Número de jugadores</label>
+          <div class="row" id="cfg-players" role="radiogroup" aria-label="Número de jugadores">
+            <button type="button" class="chip" data-value="2">2</button>
+            <button type="button" class="chip selected" data-value="3">3</button>
+            <button type="button" class="chip" data-value="4">4</button>
+            <button type="button" class="chip" data-value="5">5</button>
+          </div>
+          <p class="hint" id="cfg-turns-hint">10 turnos por jugador</p>
+        </div>
+
+        <div class="field">
+          <label>Nombres de los jugadores</label>
+          <div id="cfg-names"></div>
+        </div>
+
+        <div class="calc-summary" id="cfg-summary">
+          <div><span>Tiempo por jugador</span><strong id="sum-time-player">—</strong></div>
+          <div><span>Tiempo por turno</span><strong id="sum-time-turn">—</strong></div>
+          <div><span>Turnos por jugador</span><strong id="sum-turns">—</strong></div>
+          <div><span>Turnos totales</span><strong id="sum-total">—</strong></div>
+        </div>
+
+        <button id="btn-start" class="btn btn-primary btn-block">Iniciar partida</button>
+      </section>
+
+      <!-- ---- Pantalla de juego ---- -->
+      <section id="screen-game" class="screen" hidden>
+        <div class="game-topbar">
+          <span class="pill" id="game-progress">Turno 1/30</span>
+          <span class="pill" id="game-state-pill">En espera</span>
+        </div>
+
+        <div class="current-player">
+          <span class="label">Turno de</span>
+          <h2 id="cur-name">Jugador 1</h2>
+          <span class="hint" id="cur-mode"></span>
+        </div>
+
+        <div class="countdown-wrap">
+          <div id="countdown" class="countdown">--:--</div>
+          <div class="countdown-sub" id="countdown-sub">tiempo del turno (informativo)</div>
+        </div>
+
+        <div class="global-time">
+          <span class="label">Tiempo global restante de <b id="gtime-name">Jugador 1</b></span>
+          <div id="gtime" class="gtime">--:--</div>
+          <div class="gtime-bar"><div id="gtime-bar-fill"></div></div>
+        </div>
+
+        <div class="controls">
+          <button id="btn-turn-start" class="btn btn-primary">Iniciar turno</button>
+          <button id="btn-turn-end" class="btn btn-danger" disabled>Finalizar turno</button>
+          <button id="btn-pause" class="btn" disabled>Pausar partida</button>
+        </div>
+
+        <div class="controls-sub">
+          <button id="btn-abort" class="btn-link">Abandonar partida</button>
+        </div>
+      </section>
+
+      <!-- ---- Pantalla de resumen ---- -->
+      <section id="screen-summary" class="screen" hidden>
+        <h2>Partida finalizada</h2>
+        <div id="summary-rows" class="summary"></div>
+        <p class="hint" id="summary-note"></p>
+        <button id="btn-new-game" class="btn btn-primary btn-block">Nueva partida</button>
+      </section>
+    </main>
+
+    <!-- ============ SECCIÓN 2: TRACKADOR (FASE 2 — placeholder) ============ -->
+    <main id="tracker-section" class="section" hidden>
+      <header class="app-header">
+        <h1>Trackador</h1>
+        <span class="subtitle">Small World of Warcraft</span>
+      </header>
+      <div class="placeholder">
+        <h2>Fase 2</h2>
+        <p>Trackador de partida: puntos, razas y acciones por turno.</p>
+        <p class="hint">Aún no implementado.</p>
+      </div>
+    </main>
+
+    <!-- ============ SECCIÓN 3: BOT DE ESTRATEGIA (FASE 3 — placeholder) ============ -->
+    <main id="bot-section" class="section" hidden>
+      <header class="app-header">
+        <h1>Bot de estrategia</h1>
+        <span class="subtitle">Small World of Warcraft</span>
+      </header>
+      <div class="placeholder">
+        <h2>Fase 3</h2>
+        <p>Sugerencias de jugadas según el estado de la partida.</p>
+        <p class="hint">Aún no implementado.</p>
+      </div>
+    </main>
+
+    <!-- ============ NAVEGACIÓN INFERIOR ============ -->
+    <nav class="tabbar" aria-label="Secciones">
+      <button class="tab selected" data-tab="timer" aria-selected="true">
+        <span class="tab-icon">⏱</span> Timer
+      </button>
+      <button class="tab" data-tab="tracker" aria-selected="false">
+        <span class="tab-icon">📋</span> Trackador
+      </button>
+      <button class="tab" data-tab="bot" aria-selected="false">
+        <span class="tab-icon">🤖</span> Bot
+      </button>
+    </nav>
+
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
