@@ -194,7 +194,11 @@ function newGame(durationMin, playerCount, names) {
       hardCapMs: null
     },
     turnsCompleted: 0,
-    lastTick: null
+    lastTick: null,
+    // Fase 2 — Trackador: acciones registradas por jugador, por turno.
+    // actions[playerIndex][turnIndex] = [{ id, text, at }]
+    // turnIndex = nº de turno que ESE jugador ha finalizado hasta el momento (0..turnsPerPlayer-1).
+    actions: players.map(() => [])
   };
 }
 
@@ -238,6 +242,11 @@ function endTurn(auto = false) {
   game.turnsCompleted++;
   game.lastTick = now;
 
+  // Marcar que el jugador que TERMINA el turno ha jugado 1 turno más.
+  // (Convención: turnsPlayed = nº de turnos terminados por ese jugador.
+  //  Es coherente con el mapeo de la lista del trackador y con el resumen.)
+  currentPlayer().turnsPlayed++;
+
   if (game.turnsCompleted >= totalTurns()) {
     finishGame();
     return;
@@ -246,7 +255,6 @@ function endTurn(auto = false) {
   // Avanzar al siguiente jugador (rotación estricta)
   t.playerIndex = (t.playerIndex + 1) % game.config.playerCount;
   const p = currentPlayer();
-  p.turnsPlayed++;
 
   save();
   render();
@@ -364,6 +372,7 @@ function stopTick() {
 function render() {
   renderScreen();
   if (game && (game.state === 'playing' || game.state === 'paused')) renderGame();
+  if (typeof renderTracker === 'function') renderTracker();
 }
 
 function renderScreen() {
@@ -534,6 +543,164 @@ function syncNameInputs(playerCount) {
   }
 }
 
+// ---------------- Fase 2: Trackador ----------------
+// actions[playerIndex][turnIndex] = [{ id, text, at }]
+// turnIndex del jugador = nº de turnos que ESE jugador ya ha finalizado (0-based).
+
+function trkEnsureActionsOn(state) {
+  if (!state || !state.config) return;
+  if (!Array.isArray(state.actions)) state.actions = [];
+  const n = state.config.playerCount || 0;
+  for (let i = 0; i < n; i++) {
+    if (!Array.isArray(state.actions[i])) state.actions[i] = [];
+    // Sanitizar sub-índices: null / undefined -> array vacío (evita "Cannot read length of null")
+    for (let k = 0; k < state.actions[i].length; k++) {
+      if (!Array.isArray(state.actions[i][k])) state.actions[i][k] = [];
+    }
+  }
+}
+
+function trkEnsureActions() {
+  if (!game) return;
+  trkEnsureActionsOn(game);
+}
+
+function trkCurrentPlayerIdx() {
+  return game ? game.turn.playerIndex : 0;
+}
+
+function trkCurrentTurnIdx() {
+  // Índice del turno propio del jugador actual = nº de turnos que YA termino
+  // ese jugador (turnsPlayed). Coincide con el mapeo de la lista:
+  //   globalTurn g -> pIdx=(g-1)%N, turnsBefore=floor((g-1)/N) = player.turnsPlayed
+  const pIdx = trkCurrentPlayerIdx();
+  const p = game.config.players[pIdx];
+  return Math.max(0, p ? p.turnsPlayed : 0);
+}
+
+function trkAddAction(text) {
+  if (!game || !game.config) return;
+  const t = text && text.trim();
+  if (!t) return;
+  trkEnsureActions();
+  const pIdx = trkCurrentPlayerIdx();
+  const tIdx = trkCurrentTurnIdx();
+  const arr = game.actions[pIdx];
+  if (!Array.isArray(arr) || !Array.isArray(arr[tIdx])) arr[tIdx] = [];
+  arr[tIdx].push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    text: t.slice(0, 400),
+    at: Date.now()
+  });
+  save();
+  renderTracker();
+  toast('Acción registrada');
+}
+
+function trkDeleteAction(pIdx, tIdx, actionId) {
+  if (!game) return;
+  trkEnsureActions();
+  const arr = game.actions[pIdx];
+  if (Array.isArray(arr) && Array.isArray(arr[tIdx])) {
+    arr[tIdx] = arr[tIdx].filter((a) => a.id !== actionId);
+    // Mantener como array vacío en vez de `delete` (evita slots null al serializar)
+  }
+  save();
+  renderTracker();
+}
+
+function renderTracker() {
+  const empty = $('#tracker-empty');
+  const body = $('#tracker-body');
+  const hasGame = game && game.config && game.config.players;
+  empty.hidden = !!hasGame;
+  body.hidden = !hasGame;
+  if (!hasGame) return;
+
+  // Topbar
+  const total = totalTurns();
+  const done = game.turnsCompleted;
+  $('#trk-progress').textContent = `Turno ${done + 1}/${total}`;
+  const p = currentPlayer();
+  $('#trk-current').textContent = `Turno de ${p.name}`;
+
+  // Compose: solo habilitado si hay turno activo o la partida está en pausa
+  const canCompose = game.state === 'playing' || game.state === 'paused';
+  $('#btn-trk-add').disabled = !canCompose;
+
+  // Lista de turnos
+  const list = $('#trk-list');
+  list.innerHTML = '';
+
+  // Orden de visualización: turnos ya finalizados (1..done) + turno en curso (done+1)
+  const shownTurns = Math.min(total, done + 1);
+  for (let globalTurn = 1; globalTurn <= shownTurns; globalTurn++) {
+    // ¿Qué jugador y qué índice de turno propio corresponde a ese turno global?
+    // Rotación estricta: turno global g (1-based) -> jugador (g-1) % N
+    const pIdx = (globalTurn - 1) % game.config.playerCount;
+    const player = game.config.players[pIdx];
+    // El índice de turno propio del jugador en ese turno global:
+    // = cuántas veces ha jugado ese jugador ANTES de este turno global.
+    // Con rotación estricta J1..JN..J1.., el jugador p aparece en los turnos
+    // p+1, p+1+N, p+1+2N, ... → su k-ésimo turno propio está en el turno global
+    // p+1+k·N → k = floor((globalTurn-1)/N).
+    const turnsBefore = Math.floor((globalTurn - 1) / game.config.playerCount);
+
+    const card = document.createElement('div');
+    card.className = 'trk-turn';
+    const head = document.createElement('div');
+    head.className = 'trk-turn-head';
+    const num = document.createElement('span');
+    num.className = 'trk-turn-num';
+    num.textContent = `Turno ${globalTurn}`;
+    const pname = document.createElement('span');
+    pname.className = 'trk-turn-player';
+    pname.textContent = player.name;
+    head.appendChild(num);
+    head.appendChild(pname);
+    card.appendChild(head);
+
+    const slot = (game.actions && Array.isArray(game.actions[pIdx])) ? game.actions[pIdx][turnsBefore] : null;
+    const actions = Array.isArray(slot) ? slot : [];
+
+    if (actions.length === 0) {
+      const e = document.createElement('div');
+      e.className = 'trk-empty-turn';
+      e.textContent = 'Sin acciones registradas';
+      card.appendChild(e);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'trk-turn-actions';
+      actions.forEach((a) => {
+        const row = document.createElement('div');
+        row.className = 'trk-action';
+        const txt = document.createElement('span');
+        txt.className = 'txt';
+        txt.textContent = a.text;
+        const del = document.createElement('button');
+        del.className = 'del';
+        del.type = 'button';
+        del.setAttribute('aria-label', 'Eliminar acción');
+        del.textContent = '×';
+        del.addEventListener('click', () => trkDeleteAction(pIdx, turnsBefore, a.id));
+        row.appendChild(txt);
+        row.appendChild(del);
+        wrap.appendChild(row);
+      });
+      card.appendChild(wrap);
+    }
+    list.appendChild(card);
+  }
+
+  // Si no hay turnos jugados todavía, mostrar un aviso
+  if (shownTurns === 0) {
+    const e = document.createElement('div');
+    e.className = 'placeholder';
+    e.innerHTML = '<p class="hint">Aún no hay turnos registrados.</p>';
+    list.appendChild(e);
+  }
+}
+
 // ---------------- Service worker ----------------
 function registerSW() {
   if ('serviceWorker' in navigator && window.isSecureContext) {
@@ -603,6 +770,21 @@ function bindEvents() {
     render();
   });
 
+  // Fase 2 — Trackador
+  const noteEl = $('#trk-note');
+  $('#btn-trk-add').addEventListener('click', () => {
+    trkAddAction(noteEl.value);
+    noteEl.value = '';
+  });
+  noteEl.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      trkAddAction(noteEl.value);
+      noteEl.value = '';
+    }
+  });
+  $('#btn-trk-clear').addEventListener('click', () => { noteEl.value = ''; noteEl.focus(); });
+
   // Tabs
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -616,6 +798,7 @@ function bindEvents() {
       $('#timer-section').hidden = which !== 'timer';
       $('#tracker-section').hidden = which !== 'tracker';
       $('#bot-section').hidden = which !== 'bot';
+      if (which === 'tracker') renderTracker();
     });
   });
 
@@ -641,6 +824,7 @@ function init() {
     saved.turn.anchorTime = null;
   }
   saved.lastTick = null;
+  trkEnsureActionsOn(saved);
   game = saved;
   save();
   toast('Partida restaurada en pausa — pulsa Reanudar para continuar');
@@ -651,9 +835,11 @@ function init() {
     saved.turn.anchorTime = null;
   }
   saved.lastTick = null;
+  trkEnsureActionsOn(saved);
   game = saved;
   save();
 } else if (saved && saved.state === 'finished') {
+    trkEnsureActionsOn(saved);
     game = saved;
   } else {
     game = null;

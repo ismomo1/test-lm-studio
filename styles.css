@@ -234,6 +234,70 @@ input[type="text"]::placeholder { color: var(--text-dim); }
 .summary-row .value.over { color: var(--danger); }
 .summary-row .value.limited { color: var(--warn); }
 
+/* ---- Trackador (Fase 2) ---- */
+.tracker-topbar { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+
+.tracker-compose {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.tracker-compose label { display: block; font-weight: 600; margin-bottom: 8px; }
+textarea {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 72px;
+}
+textarea::placeholder { color: var(--text-dim); }
+.tracker-compose .row { justify-content: space-between; align-items: center; }
+
+.trk-list { display: grid; gap: 10px; }
+.trk-turn {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.trk-turn-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.trk-turn-num { font-weight: 700; font-size: 1rem; }
+.trk-turn-player { color: var(--primary); font-weight: 600; }
+.trk-turn-actions { display: grid; gap: 6px; }
+.trk-action {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+.trk-action .txt { flex: 1; white-space: pre-wrap; word-break: break-word; }
+.trk-action .del {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 1rem; padding: 0 4px; line-height: 1;
+  flex: 0 0 auto;
+}
+.trk-action .del:hover { color: var(--danger); }
+.trk-empty-turn { color: var(--text-dim); font-size: 0.9rem; font-style: italic; }
+
 /* ---- Placeholder ---- */
 .placeholder {
   background: var(--bg-soft);

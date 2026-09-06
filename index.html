@@ -114,16 +114,35 @@
       </section>
     </main>
 
-    <!-- ============ SECCIÓN 2: TRACKADOR (FASE 2 — placeholder) ============ -->
+    <!-- ============ SECCIÓN 2: TRACKADOR (FASE 2) ============ -->
     <main id="tracker-section" class="section" hidden>
       <header class="app-header">
         <h1>Trackador</h1>
         <span class="subtitle">Small World of Warcraft</span>
       </header>
-      <div class="placeholder">
-        <h2>Fase 2</h2>
-        <p>Trackador de partida: puntos, razas y acciones por turno.</p>
-        <p class="hint">Aún no implementado.</p>
+
+      <div id="tracker-empty" class="placeholder" hidden>
+        <h2>Sin partida activa</h2>
+        <p>El trackador registra qué hizo cada jugador en cada turno.</p>
+        <p class="hint">Inicia una partida en la sección Timer para empezar a registrar.</p>
+      </div>
+
+      <div id="tracker-body" hidden>
+        <div class="tracker-topbar">
+          <span class="pill" id="trk-progress">—</span>
+          <span class="pill" id="trk-current">Turno de —</span>
+        </div>
+
+        <div class="tracker-compose">
+          <label for="trk-note">Registrar acción del turno actual</label>
+          <textarea id="trk-note" rows="3" placeholder="P. ej. Atacó con orcos, construyó un muro, movió 2 ejércitos al sur…"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button id="btn-trk-add" class="btn btn-primary" type="button">Añadir acción</button>
+            <button id="btn-trk-clear" class="btn-link" type="button">Borrar borrador</button>
+          </div>
+        </div>
+
+        <div id="trk-list" class="trk-list"></div>
       </div>
     </main>
 
