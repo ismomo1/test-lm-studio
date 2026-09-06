@@ -373,6 +373,7 @@ function render() {
   renderScreen();
   if (game && (game.state === 'playing' || game.state === 'paused')) renderGame();
   if (typeof renderTracker === 'function') renderTracker();
+  if (typeof renderBot === 'function') renderBot();
 }
 
 function renderScreen() {
@@ -701,6 +702,191 @@ function renderTracker() {
   }
 }
 
+// ---------------- Fase 3: Bot de estrategia ----------------
+// El bot muestra: (1) estado de la partida, (2) sugerencias basadas en el
+// trackador + estado, (3) recordatorio de reglas. Sin IA pesada: reglas
+// simples de ponderación sobre las acciones registradas.
+
+const BOT_RULES = [
+  'El tiempo que cuenta es el <b>global por jugador</b> (duración total ÷ jugadores).',
+  'El tiempo por turno es <b>informativo</b>: el excedente se descuenta del tiempo global pero no corta el turno.',
+  'Si un jugador agota su tiempo global, sus turnos siguientes pasan a <b>modo límite: 2 min con corte duro</b>.',
+  'Rotación estricta: J1 → J2 → … → JN → J1, sin saltos.',
+  'Turnos por jugador: <b>2–3 jugadores → 10 · 4 → 9 · 5 → 8</b>.',
+  'Pausa global: congela todo (tiempo de turno y global).',
+  'Al restaurar una partida en pleno turno, se reabre en <b>pausa</b>.'
+];
+
+function botStateSummary() {
+  if (!game || !game.config) return null;
+  const p = currentPlayer();
+  const total = totalTurns();
+  const done = game.turnsCompleted;
+  const gLeft = playerGlobalLeft(p);
+  const limited = playerInLimit(p);
+  return {
+    state: game.state,
+    progress: `Turno ${done + 1}/${total}`,
+    current: p.name,
+    currentLimited: limited,
+    currentGlobalLeft: gLeft,
+    players: game.config.players.map((pl) => ({
+      name: pl.name,
+      turnsPlayed: pl.turnsPlayed,
+      globalLeft: playerGlobalLeft(pl),
+      limited: playerInLimit(pl)
+    }))
+  };
+}
+
+function botSuggest() {
+  if (!game || !game.config) return [];
+  const out = [];
+  const p = currentPlayer();
+  const pIdx = game.turn.playerIndex;
+
+  // 1. Aviso de modo límite
+  if (playerInLimit(p)) {
+    out.push({
+      level: 'danger',
+      tag: 'Límite',
+      text: `${p.name} está en <b>modo límite</b>: turno máximo 2 min con corte duro. Juega rápido.`
+    });
+  }
+
+  // 2. Aviso de tiempo global bajo
+  const gLeft = playerGlobalLeft(p);
+  if (!playerInLimit(p) && gLeft > 0 && gLeft < game.config.timePerPlayerMs * 0.33) {
+    out.push({
+      level: 'warn',
+      tag: 'Tiempo',
+      text: `${p.name} le quedan <b>${fmtLong(gLeft)}</b> de tiempo global. El excedente de este turno le restará más.`
+    });
+  }
+
+  // 3. Sugerencias basadas en el trackador del jugador actual
+  const myTurns = (game.actions && Array.isArray(game.actions[pIdx])) ? game.actions[pIdx] : [];
+  const myActions = myTurns.filter((a) => Array.isArray(a)).flat();
+
+  // Patrones simples sobre el texto de acciones
+  const PATTERNS = [
+    { re: /(atac|invadi|derrot|elimina)/i, tag: 'Ofensiva', text: 'Has estado <b>atacando</b> últimamente. Si el rival ha construido defensas, considera una jugada más defensiva o de reubicación.' },
+    { re: /(construy|defens|muro|fortific|muralla)/i, tag: 'Defensa', text: 'Has estado <b>construyendo</b>. Si el rival ataca, tus defensas te protegen; si no, considera invertir esa fuerza en ofensiva.' },
+    { re: /(movi|reubica|desplaz|retira)/i, tag: 'Movilidad', text: 'Has estado <b>moviendo</b> piezas. La movilidad da opciones; asegúrate de tener un objetivo claro para el siguiente turno.' },
+    { re: /(recog|colect|recuper|pesc)/i, tag: 'Economía', text: 'Has estado <b>recolectando</b>. La economía sostiene el resto de acciones; si vas corto de tiempo, prioriza objetivos de victoria.' }
+  ];
+  for (const pat of PATTERNS) {
+    const hits = myActions.filter((a) => pat.re.test(a.text)).length;
+    if (hits >= 2) {
+      out.push({ level: 'tipsy', tag: pat.tag, text: pat.text.replace('Has estado', `${p.name} ha estado`) });
+      break; // solo la sugerencia más relevante
+    }
+  }
+
+  // 4. Si el jugador actual no ha registrado nada aún
+  if (myActions.length === 0) {
+    out.push({
+      level: 'tipsy',
+      tag: 'Consejo',
+      text: `${p.name} todavía no ha registrado acciones. Usa el <b>Trackador</b> para anotar qué hizo en cada turno: el bot dará sugerencias más precisas.`
+    });
+  }
+
+  // 5. Recordatorio de turno
+  out.push({
+    level: 'tipsy',
+    tag: 'Turno',
+    text: `Ahora es turno de <b>${p.name}</b>. Recuerda: el tiempo por turno es informativo; el que cuenta es el global.`
+  });
+
+  return out.slice(0, 5);
+}
+
+function renderBot() {
+  const empty = $('#bot-empty');
+  const body = $('#bot-body');
+  const hasGame = game && game.config && game.config.players;
+  empty.hidden = !!hasGame;
+  body.hidden = !hasGame;
+  if (!hasGame) return;
+
+  // Estado
+  const s = botStateSummary();
+  const stateEl = $('#bot-state');
+  stateEl.innerHTML = '';
+  if (s) {
+    const rows = [
+      ['Estado', s.state === 'playing' ? 'En juego' : s.state === 'paused' ? 'En pausa' : 'Finalizada', s.state === 'paused' ? 'warn' : ''],
+      ['Progreso', s.progress, ''],
+      ['Turno de', s.current, s.currentLimited ? 'danger' : '']
+    ];
+    if (s.currentLimited) rows.push(['Modo', 'LÍMITE (2 min)', 'danger']);
+    else if (s.currentGlobalLeft > 0) rows.push(['Tiempo global', fmtLong(s.currentGlobalLeft), s.currentGlobalLeft < game.config.timePerPlayerMs * 0.33 ? 'warn' : 'ok']);
+
+    rows.forEach(([k, v, cls]) => {
+      const r = document.createElement('div');
+      r.className = 'row';
+      const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k;
+      const vv = document.createElement('span'); vv.className = 'v ' + (cls || ''); vv.textContent = v;
+      r.appendChild(kk); r.appendChild(vv);
+      stateEl.appendChild(r);
+    });
+
+    // Jugadores
+    const div = document.createElement('div');
+    div.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid var(--border);';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;';
+    title.textContent = 'Jugadores';
+    div.appendChild(title);
+    s.players.forEach((pl) => {
+      const r = document.createElement('div');
+      r.className = 'row';
+      r.style.cssText = 'padding:2px 0;';
+      const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = pl.name;
+      const vv = document.createElement('span');
+      vv.className = 'v ' + (pl.limited ? 'danger' : (pl.globalLeft < game.config.timePerPlayerMs * 0.33 ? 'warn' : 'ok'));
+      vv.textContent = pl.limited ? 'agotado' : `${pl.turnsPlayed}/${game.config.turnsPerPlayer} · ${fmtLong(pl.globalLeft)}`;
+      r.appendChild(kk); r.appendChild(vv);
+      div.appendChild(r);
+    });
+    stateEl.appendChild(div);
+  }
+
+  // Sugerencias
+  const sugEl = $('#bot-suggestions');
+  sugEl.innerHTML = '';
+  const suggestions = botSuggest();
+  if (suggestions.length === 0) {
+    const e = document.createElement('div');
+    e.className = 'bot-no-suggestions';
+    e.textContent = 'Sin sugerencias por ahora. Registra acciones en el Trackador para recibir análisis.';
+    sugEl.appendChild(e);
+  } else {
+    suggestions.forEach((sg) => {
+      const card = document.createElement('div');
+      card.className = 'bot-suggestion ' + (sg.level || '');
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = sg.tag || 'Info';
+      const txt = document.createElement('span');
+      txt.innerHTML = sg.text;
+      card.appendChild(tag);
+      card.appendChild(txt);
+      sugEl.appendChild(card);
+    });
+  }
+
+  // Reglas
+  const rulesEl = $('#bot-rules');
+  rulesEl.innerHTML = '';
+  BOT_RULES.forEach((rule) => {
+    const li = document.createElement('li');
+    li.innerHTML = rule;
+    rulesEl.appendChild(li);
+  });
+}
+
 // ---------------- Service worker ----------------
 function registerSW() {
   if ('serviceWorker' in navigator && window.isSecureContext) {
@@ -785,6 +971,12 @@ function bindEvents() {
   });
   $('#btn-trk-clear').addEventListener('click', () => { noteEl.value = ''; noteEl.focus(); });
 
+  // Fase 3 — Bot
+  $('#btn-bot-refresh').addEventListener('click', () => {
+    renderBot();
+    toast('Análisis actualizado');
+  });
+
   // Tabs
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -799,6 +991,7 @@ function bindEvents() {
       $('#tracker-section').hidden = which !== 'tracker';
       $('#bot-section').hidden = which !== 'bot';
       if (which === 'tracker') renderTracker();
+      if (which === 'bot') renderBot();
     });
   });
 

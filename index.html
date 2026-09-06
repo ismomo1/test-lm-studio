@@ -146,16 +146,35 @@
       </div>
     </main>
 
-    <!-- ============ SECCIÓN 3: BOT DE ESTRATEGIA (FASE 3 — placeholder) ============ -->
+    <!-- ============ SECCIÓN 3: BOT DE ESTRATEGIA (FASE 3) ============ -->
     <main id="bot-section" class="section" hidden>
       <header class="app-header">
         <h1>Bot de estrategia</h1>
         <span class="subtitle">Small World of Warcraft</span>
       </header>
-      <div class="placeholder">
-        <h2>Fase 3</h2>
-        <p>Sugerencias de jugadas según el estado de la partida.</p>
-        <p class="hint">Aún no implementado.</p>
+
+      <div id="bot-empty" class="placeholder" hidden>
+        <h2>Sin partida activa</h2>
+        <p>El bot da sugerencias según el estado de la partida y las acciones registradas.</p>
+        <p class="hint">Inicia una partida en la sección Timer para que el bot pueda analizar.</p>
+      </div>
+
+      <div id="bot-body" hidden>
+        <div class="bot-card">
+          <h3>📋 Estado de la partida</h3>
+          <div id="bot-state" class="bot-state"></div>
+        </div>
+
+        <div class="bot-card">
+          <h3>💡 Sugerencias</h3>
+          <div id="bot-suggestions" class="bot-suggestions"></div>
+        </div>
+
+        <div class="bot-card">
+          <h3>📖 Recordatorio de reglas</h3>
+          <ul id="bot-rules" class="bot-rules"></ul>
+          <button id="btn-bot-refresh" class="btn-link" type="button">↻ Actualizar análisis</button>
+        </div>
       </div>
     </main>
 
